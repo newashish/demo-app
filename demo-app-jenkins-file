@@ -1,0 +1,99 @@
+pipeline {
+    agent any
+
+    environment {
+        CREDENTIALS_ID = "github-integration"
+        SSH_USER = "ubuntu"
+        SERVER_IP = "13.214.172.154"
+        SSH_PORT = "22"
+        APPS_PATH = "/var/www/apps/demo-app"
+        APPS_REPO_URL = 'git@github.com:newashish/demo-app.git'
+        GIT_BRANCH = 'main'
+        PROJECT_NAME = "project1"
+        DOCKER_USERNAME = 'clouddckr'
+        DOCKER_URL = 'docker.io/clouddckr'
+        IMAGE_TAG = 'demo-app-latest'
+    }
+     stages {
+        stage('initilize') {
+            steps {
+                script {
+                    sshagent([CREDENTIALS_ID]) {
+                        def releaseDir = "${APPS_PATH}"
+                        sh """
+                        ssh -p ${SSH_PORT} ${SSH_USER}@${SERVER_IP} \\
+                        'rm -rf ${releaseDir} && git clone -b ${GIT_BRANCH} ${APPS_REPO_URL} ${releaseDir}'
+                        """
+                    }
+                }
+            }
+        }
+
+   stage('Build') {
+            steps {
+                script {
+                    sshagent([CREDENTIALS_ID]) {
+                        sh """
+                        ssh -p ${SSH_PORT} ${SSH_USER}@${SERVER_IP} \\
+                       'cd ${APPS_PATH} && \\
+                        docker build -t ${DOCKER_URL}/${PROJECT_NAME}:${IMAGE_TAG} .'
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Docker Login & Push') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'docker-hub-credentials', variable: 'DOCKER_PASSWORD')]) {
+                        sshagent([CREDENTIALS_ID]) {
+                            sh """
+                            ssh -p ${SSH_PORT} ${SSH_USER}@${SERVER_IP} \\
+                            'docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD} && \\
+                            docker push ${DOCKER_URL}/${PROJECT_NAME}:${IMAGE_TAG} && \\
+                            docker rmi ${DOCKER_URL}/${PROJECT_NAME}:${IMAGE_TAG} || true'
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'docker-hub-credentials', variable: 'DOCKER_PASSWORD')]) {
+                        sshagent([CREDENTIALS_ID]) {
+                            sh """
+                            ssh -p ${SSH_PORT} ${SSH_USER}@${SERVER_IP} \\
+                            'docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD} && \\
+                            docker service update --image ${DOCKER_URL}/${PROJECT_NAME}:${IMAGE_TAG} --force my-stack_my-service'
+                            """
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            emailext (
+                subject: "SUCCESS: Job '${env.JOB_NAME} [#${env.BUILD_NUMBER}]'",
+                body: "Good news!\n\nJob '${env.JOB_NAME} [#${env.BUILD_NUMBER}]' completed successfully.\n\nCheck details: ${env.BUILD_URL}",
+                to: "ashishchoudhary5645@gmail.com,ananda.yashaswi@quokkalabs.com,prateek.roy@quokkalabs.com"
+            )
+        }
+        failure {
+            emailext (
+                subject: "FAILURE: Job '${env.JOB_NAME} [#${env.BUILD_NUMBER}]'",
+                body: "Attention required!\n\nJob '${env.JOB_NAME} [#${env.BUILD_NUMBER}]' failed.\n\nCheck console output: ${env.BUILD_URL}",
+                to: "ashishchoudhary5645@gmail.com,aananda.yashaswi@quokkalabs.com,prateek.roy@quokkalabs.com"
+            )
+        }
+    }
+}
+ 
+        
+        
