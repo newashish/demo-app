@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  my-service:
+    image: clouddckr/project1:demo-app-latest
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "3000:3000"
+    secrets:
+      - dockerhub-password
+      - dockerhub_username
+    networks:
+      - my-overlay-network
+    volumes:
+      - demo-app:/app-data
+
+secrets:
+  dockerhub-password:
+    external: true
+  dockerhub_username:
+    external: true
+
+volumes:
+  demo-app:
+    external: true
+
+networks:
+  my-overlay-network:
+    driver: overlay
