@@ -46,5 +46,3 @@ jobs:
             docker rmi "$USERNAME/my-app:latest" || true
             docker pull "$USERNAME/my-app:latest"
             docker run -d --name my-app -p 3000:3000 "$USERNAME/my-app:latest"
-EOF
-        shell: bash
