@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,3 +29,22 @@ jobs:
         run: |
           USERNAME=$(echo "${{ secrets.DOCKERHUB_CREDENTIAL }}" | cut -d ':' -f 1)
           docker push "$USERNAME/my-app:latest"
+
+      - name: Deploy on App Server
+        run: |
+          HOST=$(echo "${{ secrets.SSH_SECRET }}" | cut -d '|' -f 1)
+          PEM_KEY=$(echo "${{ secrets.SSH_SECRET }}" | cut -d '|' -f 2-)
+
+          echo "$PEM_KEY" > key.pem
+          chmod 600 key.pem
+
+          USERNAME=$(echo "${{ secrets.DOCKERHUB_CREDENTIAL }}" | cut -d ':' -f 1)
+
+          ssh -o StrictHostKeyChecking=no -i key.pem "$HOST" << EOF
+            docker stop my-app || true
+            docker rm my-app || true
+            docker rmi "$USERNAME/my-app:latest" || true
+            docker pull "$USERNAME/my-app:latest"
+            docker run -d --name my-app -p 3000:3000 "$USERNAME/my-app:latest"
+EOF
+        shell: bash
