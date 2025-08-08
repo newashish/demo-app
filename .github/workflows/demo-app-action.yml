@@ -22,7 +22,6 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          curl -o .env https://your-env-source.com/env-file
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest .
 
       - name: Push Docker Image
